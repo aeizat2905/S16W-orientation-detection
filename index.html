@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LeadFrame Vision</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0a0c0f;
+    --bg2:       #111418;
+    --bg3:       #181c22;
+    --panel:     #1c2028;
+    --border:    #2a3040;
+    --copper:    #c8742a;
+    --copper2:   #e8922e;
+    --pass:      #1adb7a;
+    --fail:      #ff3d4a;
+    --warn:      #f5c842;
+    --text:      #e8eaf0;
+    --muted:     #6b7585;
+    --mono:      'Space Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    overflow: hidden;
+  }
+
+  /* ── SPLASH ── */
+  #splash {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: var(--bg);
+    z-index: 100;
+    gap: 0;
+    transition: opacity 0.5s, visibility 0.5s;
+  }
+  #splash.hidden { opacity: 0; visibility: hidden; }
+
+  .logo-ring {
+    width: 90px; height: 90px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    margin-bottom: 28px;
+  }
+  .logo-ring::before {
+    content: '';
+    position: absolute; inset: -6px;
+    border-radius: 50%;
+    border: 1px solid var(--copper);
+    opacity: 0.4;
+    animation: spin 8s linear infinite;
+  }
+  .logo-ring::after {
+    content: '';
+    position: absolute;
+    width: 8px; height: 8px;
+    background: var(--copper2);
+    border-radius: 50%;
+    top: -4px; left: 50%; transform: translateX(-50%);
+    animation: spin 8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes spin-center { to { transform: translateX(-50%) rotate(360deg); } }
+
+  .logo-icon {
+    width: 44px; height: 36px;
+    display: grid; grid-template-columns: 8px 1fr 8px;
+    grid-template-rows: 1fr;
+    gap: 3px;
+  }
+  .logo-icon .rail { background: var(--copper); border-radius: 2px; opacity: 0.7; }
+  .logo-icon .die  {
+    background: var(--bg3);
+    border: 1px solid var(--copper);
+    border-radius: 2px;
+    display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+    gap: 3px; padding: 4px;
+  }
+  .logo-icon .die span {
+    background: var(--copper2);
+    border-radius: 1px;
+    opacity: 0.8;
+  }
+
+  .splash-title {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .splash-sub {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 48px;
+  }
+
+  #btn-open-camera {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    background: transparent;
+    color: var(--copper2);
+    border: 1px solid var(--copper);
+    padding: 14px 36px;
+    border-radius: 4px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: color 0.2s;
+  }
+  #btn-open-camera::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: var(--copper);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  #btn-open-camera:hover::before { opacity: 0.12; }
+  #btn-open-camera:active { transform: scale(0.97); }
+
+  .splash-note {
+    margin-top: 20px;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  /* ── MAIN APP ── */
+  #app {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.4s, visibility 0.4s;
+  }
+  #app.visible { opacity: 1; visibility: visible; }
+
+  /* Top bar */
+  #topbar {
+    height: 52px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  .topbar-logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--copper2);
+    flex: 1;
+  }
+  #verdict-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 5px 14px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  #verdict-badge.idle    { background: var(--panel); color: var(--muted);  border-color: var(--border); }
+  #verdict-badge.pass    { background: #0d2e1c;       color: var(--pass);   border-color: var(--pass);  }
+  #verdict-badge.fail    { background: #2e0d11;       color: var(--fail);   border-color: var(--fail);  }
+
+  #btn-flip {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 1px;
+  }
+  #btn-flip:active { opacity: 0.7; }
+
+  /* Camera viewport */
+  #viewport {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: #000;
+  }
+
+  #video {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  #canvas-overlay {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+
+  /* Crosshair / guide frame */
+  .guide-corner {
+    position: absolute;
+    width: 24px; height: 24px;
+    border-color: var(--copper);
+    border-style: solid;
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  #gc-tl { top: 20px; left: 20px; border-width: 2px 0 0 2px; }
+  #gc-tr { top: 20px; right: 20px; border-width: 2px 2px 0 0; }
+  #gc-bl { bottom: 20px; left: 20px; border-width: 0 0 2px 2px; }
+  #gc-br { bottom: 20px; right: 20px; border-width: 0 2px 2px 0; }
+
+  /* Scan line animation */
+  #scanline {
+    position: absolute; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--copper) 30%, var(--copper2) 50%, var(--copper) 70%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    animation: scan 2s ease-in-out infinite;
+  }
+  #scanline.active { opacity: 0.5; }
+  @keyframes scan {
+    0%   { top: 10%; }
+    50%  { top: 90%; }
+    100% { top: 10%; }
+  }
+
+  /* Bottom panel */
+  #panel {
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    padding: 14px 16px 20px;
+    flex-shrink: 0;
+  }
+
+  /* ROI config row */
+  .config-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .config-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .config-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--copper);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .dot.l { background: #5bc4f5; }
+  .dot.r { background: #f5a25b; }
+
+  .stat-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .stat-val {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .stat-unit { font-size: 10px; color: var(--muted); margin-left: 2px; }
+  .stat-ok   { color: var(--pass); }
+  .stat-fail { color: var(--fail); }
+  .stat-idle { color: var(--muted); }
+
+  /* Controls */
+  .ctrl-row {
+    display: flex; gap: 8px; margin-bottom: 10px;
+  }
+  .ctrl-group {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+  .ctrl-group label {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 4px;
+  }
+  .ctrl-group input[type=range] {
+    width: 100%;
+    accent-color: var(--copper2);
+    height: 18px;
+  }
+  .ctrl-val {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--copper2);
+    float: right;
+  }
+
+  /* Calibrate button */
+  #btn-calibrate {
+    width: 100%;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    background: transparent;
+    color: var(--copper);
+    border: 1px dashed var(--copper);
+    padding: 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+    opacity: 0.8;
+  }
+  #btn-calibrate:hover { background: rgba(200,116,42,0.08); }
+  #btn-calibrate.active { background: rgba(200,116,42,0.18); color: var(--copper2); border-style: solid; }
+
+  /* FPS + frame count */
+  #stats-bar {
+    display: flex; gap: 14px; margin-top: 10px;
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+  }
+
+  /* Calibration overlay */
+  #calib-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.75);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 16px;
+    z-index: 20;
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+  }
+  #calib-overlay.visible { opacity: 1; visibility: visible; }
+  #calib-overlay p {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--copper2);
+    letter-spacing: 1.5px;
+    text-align: center;
+    line-height: 1.6;
+  }
+  #calib-overlay .calib-step {
+    font-size: 11px; color: var(--muted);
+  }
+  #btn-calib-cancel {
+    font-family: var(--mono); font-size: 11px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); padding: 8px 20px; border-radius: 3px;
+    cursor: pointer; letter-spacing: 1px;
+  }
+
+  /* Calibration click targets (crosshair shown on canvas) */
+  #canvas-overlay { cursor: default; }
+  #canvas-overlay.calib-mode { cursor: crosshair; pointer-events: auto; }
+</style>
+</head>
+<body>
+
+<!-- ── SPLASH ── -->
+<div id="splash">
+  <div class="logo-ring">
+    <div class="logo-icon">
+      <div class="rail"></div>
+      <div class="die"><span></span><span></span><span></span><span></span></div>
+      <div class="rail"></div>
+    </div>
+  </div>
+  <div class="splash-title">LEADFRAME</div>
+  <div class="splash-sub">Orientation Vision System</div>
+  <button id="btn-open-camera">Open Camera</button>
+  <p class="splash-note">Point your camera at the copper leadframe strip.<br>The app detects pilot hole position in real time.</p>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="app">
+
+  <!-- Top bar -->
+  <div id="topbar">
+    <div class="topbar-logo">LF·VISION</div>
+    <button id="btn-flip">FLIP CAM</button>
+    <div id="verdict-badge" class="idle">SCANNING</div>
+  </div>
+
+  <!-- Camera viewport -->
+  <div id="viewport">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas-overlay"></canvas>
+    <div id="scanline"></div>
+    <div class="guide-corner" id="gc-tl"></div>
+    <div class="guide-corner" id="gc-tr"></div>
+    <div class="guide-corner" id="gc-bl"></div>
+    <div class="guide-corner" id="gc-br"></div>
+
+    <!-- Calibration overlay -->
+    <div id="calib-overlay">
+      <p id="calib-msg">TAP LEFT PILOT HOLE</p>
+      <p class="calib-step" id="calib-step">Step 1 of 2</p>
+      <button id="btn-calib-cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Bottom panel -->
+  <div id="panel">
+
+    <!-- Per-hole stats -->
+    <div class="config-row">
+      <div class="config-card">
+        <div class="config-label"><span class="dot l"></span>Left hole</div>
+        <div class="stat-row">
+          <span class="stat-val stat-idle" id="left-dist">—</span>
+          <span class="stat-unit">px</span>
+        </div>
+      </div>
+      <div class="config-card">
+        <div class="config-label"><span class="dot r"></span>Right hole</div>
+        <div class="stat-row">
+          <span class="stat-val stat-idle" id="right-dist">—</span>
+          <span class="stat-unit">px</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="ctrl-row">
+      <div class="ctrl-group">
+        <label>Threshold <span class="ctrl-val" id="thresh-val">70</span></label>
+        <input type="range" id="thresh-slider" min="20" max="180" value="70">
+      </div>
+      <div class="ctrl-group">
+        <label>Tolerance <span class="ctrl-val" id="tol-val">20px</span></label>
+        <input type="range" id="tol-slider" min="5" max="80" value="20">
+      </div>
+    </div>
+
+    <!-- Calibrate -->
+    <button id="btn-calibrate">Calibrate hole positions</button>
+
+    <!-- Stats -->
+    <div id="stats-bar">
+      <span id="fps-display">FPS: —</span>
+      <span id="frame-count">Frames: 0</span>
+      <span id="hole-size">Hole size: —</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- hidden processing canvas -->
+<canvas id="proc-canvas" style="display:none"></canvas>
+
+<script>
+// ── State ──────────────────────────────────────────────────────
+const state = {
+  stream: null,
+  facingMode: 'environment',
+  threshold: 70,
+  tolerance: 20,
+  // ROI in FRAME coordinates (set after calibration or defaults)
+  leftROI:  null,  // {x,y,w,h}
+  rightROI: null,
+  leftRef:  null,  // {x,y}
+  rightRef: null,
+  calibrating: false,
+  calibStep: 0,   // 0=left, 1=right
+  animFrame: null,
+  frameCount: 0,
+  lastFpsTime: performance.now(),
+  fpsFrames: 0,
+  // detection results
+  lastLeft:  null,
+  lastRight: null,
+};
+
+// ── Elements ───────────────────────────────────────────────────
+const splash        = document.getElementById('splash');
+const app           = document.getElementById('app');
+const video         = document.getElementById('video');
+const overlayCanvas = document.getElementById('canvas-overlay');
+const procCanvas    = document.getElementById('proc-canvas');
+const ctx           = overlayCanvas.getContext('2d');
+const pctx          = procCanvas.getContext('2d', { willReadFrequently: true });
+const verdict       = document.getElementById('verdict-badge');
+const scanline      = document.getElementById('scanline');
+const calibOverlay  = document.getElementById('calib-overlay');
+const calibMsg      = document.getElementById('calib-msg');
+const calibStep     = document.getElementById('calib-step');
+const leftDistEl    = document.getElementById('left-dist');
+const rightDistEl   = document.getElementById('right-dist');
+const threshSlider  = document.getElementById('thresh-slider');
+const threshVal     = document.getElementById('thresh-val');
+const tolSlider     = document.getElementById('tol-slider');
+const tolVal        = document.getElementById('tol-val');
+const fpsDisplay    = document.getElementById('fps-display');
+const frameCountEl  = document.getElementById('frame-count');
+const holeSizeEl    = document.getElementById('hole-size');
+
+// ── Camera ─────────────────────────────────────────────────────
+async function startCamera(facingMode = 'environment') {
+  if (state.stream) {
+    state.stream.getTracks().forEach(t => t.stop());
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode,
+        width:  { ideal: 1280 },
+        height: { ideal: 720 },
+      }
+    });
+    state.stream = stream;
+    video.srcObject = stream;
+    await video.play();
+    resizeCanvases();
+    startDetectionLoop();
+  } catch(e) {
+    alert('Camera access denied or not available.\n' + e.message);
+  }
+}
+
+function resizeCanvases() {
+  const vw = video.videoWidth  || video.clientWidth;
+  const vh = video.videoHeight || video.clientHeight;
+  procCanvas.width  = vw;
+  procCanvas.height = vh;
+  overlayCanvas.width  = overlayCanvas.offsetWidth;
+  overlayCanvas.height = overlayCanvas.offsetHeight;
+
+  // Default ROI — centre strip, top quarter
+  if (!state.leftRef) setDefaultROIs(vw, vh);
+}
+
+function setDefaultROIs(vw, vh) {
+  const cx = vw / 2;
+  const ty = vh * 0.25;
+  const hw = vw * 0.12;
+  const hh = vh * 0.08;
+  const off = vw * 0.12;
+
+  state.leftRef  = { x: cx - off, y: ty };
+  state.rightRef = { x: cx + off, y: ty };
+  state.leftROI  = { x: cx - off - hw, y: ty - hh, w: hw*2, h: hh*2 };
+  state.rightROI = { x: cx + off - hw, y: ty - hh, w: hw*2, h: hh*2 };
+}
+
+// ── Controls ───────────────────────────────────────────────────
+document.getElementById('btn-open-camera').addEventListener('click', async () => {
+  splash.classList.add('hidden');
+  app.classList.add('visible');
+  await startCamera('environment');
+});
+
+document.getElementById('btn-flip').addEventListener('click', async () => {
+  state.facingMode = state.facingMode === 'environment' ? 'user' : 'environment';
+  await startCamera(state.facingMode);
+});
+
+threshSlider.addEventListener('input', () => {
+  state.threshold = +threshSlider.value;
+  threshVal.textContent = state.threshold;
+});
+
+tolSlider.addEventListener('input', () => {
+  state.tolerance = +tolSlider.value;
+  tolVal.textContent = state.tolerance + 'px';
+});
+
+// ── Calibration ────────────────────────────────────────────────
+document.getElementById('btn-calibrate').addEventListener('click', () => {
+  startCalibration();
+});
+
+document.getElementById('btn-calib-cancel').addEventListener('click', () => {
+  endCalibration(false);
+});
+
+function startCalibration() {
+  state.calibrating = true;
+  state.calibStep = 0;
+  calibMsg.textContent = 'TAP LEFT PILOT HOLE';
+  calibStep.textContent = 'Step 1 of 2';
+  calibOverlay.classList.add('visible');
+  overlayCanvas.classList.add('calib-mode');
+  document.getElementById('btn-calibrate').classList.add('active');
+}
+
+function endCalibration(success) {
+  state.calibrating = false;
+  calibOverlay.classList.remove('visible');
+  overlayCanvas.classList.remove('calib-mode');
+  document.getElementById('btn-calibrate').classList.remove('active');
+}
+
+overlayCanvas.addEventListener('click', (e) => {
+  if (!state.calibrating) return;
+  const rect = overlayCanvas.getBoundingClientRect();
+  // Map click to video pixel coords
+  const scaleX = procCanvas.width  / overlayCanvas.offsetWidth;
+  const scaleY = procCanvas.height / overlayCanvas.offsetHeight;
+  const fx = (e.clientX - rect.left)  * scaleX;
+  const fy = (e.clientY - rect.top)   * scaleY;
+  const padX = procCanvas.width  * 0.08;
+  const padY = procCanvas.height * 0.07;
+
+  if (state.calibStep === 0) {
+    state.leftRef = { x: fx, y: fy };
+    state.leftROI = { x: fx - padX, y: fy - padY, w: padX*2, h: padY*2 };
+    state.calibStep = 1;
+    calibMsg.textContent = 'TAP RIGHT PILOT HOLE';
+    calibStep.textContent = 'Step 2 of 2';
+  } else {
+    state.rightRef = { x: fx, y: fy };
+    state.rightROI = { x: fx - padX, y: fy - padY, w: padX*2, h: padY*2 };
+    endCalibration(true);
+  }
+});
+
+// ── Image Processing ───────────────────────────────────────────
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function dist2d(ax, ay, bx, by) {
+  return Math.sqrt((ax-bx)**2 + (ay-by)**2);
+}
+
+/**
+ * Detect the darkest compact blob in a cropped RGBA region.
+ * Returns {cx, cy, w, h} in ROI-local pixels, or null.
+ */
+function detectHoleInROI(imageData, roi, threshold) {
+  const { x: rx, y: ry, w: rw, h: rh } = roi;
+  const fullW = imageData.width;
+  const data  = imageData.data;
+
+  // Build binary map (1 = dark pixel = hole candidate)
+  const bin = new Uint8Array(rw * rh);
+  for (let row = 0; row < rh; row++) {
+    for (let col = 0; col < rw; col++) {
+      const fx = rx + col;
+      const fy = ry + row;
+      if (fx < 0 || fy < 0 || fx >= imageData.width || fy >= imageData.height) continue;
+      const idx = (fy * fullW + fx) * 4;
+      const gray = 0.299*data[idx] + 0.587*data[idx+1] + 0.114*data[idx+2];
+      bin[row * rw + col] = gray < threshold ? 1 : 0;
+    }
+  }
+
+  // Morphological erosion (3×3) to remove salt noise
+  const eroded = new Uint8Array(rw * rh);
+  for (let row = 1; row < rh-1; row++) {
+    for (let col = 1; col < rw-1; col++) {
+      let ok = true;
+      outer: for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (!bin[(row+dr)*rw + (col+dc)]) { ok = false; break outer; }
+        }
+      }
+      eroded[row*rw+col] = ok ? 1 : 0;
+    }
+  }
+
+  // Find connected components via flood fill (simple label scan)
+  const labels = new Int32Array(rw * rh);
+  let nextLabel = 1;
+  const compSum = [];  // { sumX, sumY, count, minX, minY, maxX, maxY }
+
+  for (let row = 0; row < rh; row++) {
+    for (let col = 0; col < rw; col++) {
+      const i = row*rw+col;
+      if (!eroded[i] || labels[i]) continue;
+      // BFS flood fill
+      const label = nextLabel++;
+      const queue = [i];
+      let sumX=0, sumY=0, cnt=0;
+      let minX=col, maxX=col, minY=row, maxY=row;
+      labels[i] = label;
+      while (queue.length) {
+        const cur = queue.shift();
+        const cr = Math.floor(cur/rw), cc = cur%rw;
+        sumX += cc; sumY += cr; cnt++;
+        if (cc < minX) minX=cc; if (cc > maxX) maxX=cc;
+        if (cr < minY) minY=cr; if (cr > maxY) maxY=cr;
+        const neighbors = [cur-1, cur+1, cur-rw, cur+rw];
+        for (const nb of neighbors) {
+          if (nb>=0 && nb<rw*rh && eroded[nb] && !labels[nb]) {
+            labels[nb] = label;
+            queue.push(nb);
+          }
+        }
+      }
+      compSum.push({ sumX, sumY, cnt, minX, maxX, minY, maxY, label });
+    }
+  }
+
+  if (!compSum.length) return null;
+
+  // Filter by area and aspect ratio, pick largest qualifying blob
+  const minArea = 30, maxArea = rw * rh * 0.5;
+  const valid = compSum.filter(c => {
+    if (c.cnt < minArea || c.cnt > maxArea) return false;
+    const bw = c.maxX - c.minX + 1;
+    const bh = c.maxY - c.minY + 1;
+    const asp = bw / Math.max(1, bh);
+    return asp >= 0.2 && asp <= 5.0;
+  });
+
+  if (!valid.length) return null;
+
+  valid.sort((a,b) => b.cnt - a.cnt);
+  const best = valid[0];
+  return {
+    cx: best.sumX / best.cnt,
+    cy: best.sumY / best.cnt,
+    w:  best.maxX - best.minX + 1,
+    h:  best.maxY - best.minY + 1,
+  };
+}
+
+// ── Detection loop ─────────────────────────────────────────────
+
+function startDetectionLoop() {
+  if (state.animFrame) cancelAnimationFrame(state.animFrame);
+  scanline.classList.add('active');
+
+  function loop() {
+    state.animFrame = requestAnimationFrame(loop);
+    if (video.readyState < 2) return;
+
+    // Sync canvas sizes if needed
+    if (procCanvas.width !== video.videoWidth) {
+      procCanvas.width  = video.videoWidth;
+      procCanvas.height = video.videoHeight;
+      setDefaultROIs(video.videoWidth, video.videoHeight);
+    }
+    overlayCanvas.width  = overlayCanvas.offsetWidth;
+    overlayCanvas.height = overlayCanvas.offsetHeight;
+
+    // Draw video frame to processing canvas
+    pctx.drawImage(video, 0, 0, procCanvas.width, procCanvas.height);
+    const frame = pctx.getImageData(0, 0, procCanvas.width, procCanvas.height);
+
+    // Clamp ROIs to frame bounds
+    const clampROI = (roi) => ({
+      x: clamp(Math.round(roi.x), 0, procCanvas.width  - 2),
+      y: clamp(Math.round(roi.y), 0, procCanvas.height - 2),
+      w: clamp(Math.round(roi.w), 2, procCanvas.width),
+      h: clamp(Math.round(roi.h), 2, procCanvas.height),
+    });
+
+    const lROI = clampROI(state.leftROI);
+    const rROI = clampROI(state.rightROI);
+
+    const lHole = detectHoleInROI(frame, lROI, state.threshold);
+    const rHole = detectHoleInROI(frame, rROI, state.threshold);
+
+    // Convert to frame coords
+    const lCen = lHole ? { x: lROI.x + lHole.cx, y: lROI.y + lHole.cy } : null;
+    const rCen = rHole ? { x: rROI.x + rHole.cx, y: rROI.y + rHole.cy } : null;
+
+    const lDist = lCen ? dist2d(lCen.x, lCen.y, state.leftRef.x,  state.leftRef.y)  : null;
+    const rDist = rCen ? dist2d(rCen.x, rCen.y, state.rightRef.x, state.rightRef.y) : null;
+
+    const lOK = lDist !== null && lDist <= state.tolerance;
+    const rOK = rDist !== null && rDist <= state.tolerance;
+    const pass = lOK && rOK;
+    const anyFound = lCen || rCen;
+
+    state.lastLeft  = { hole: lHole, cen: lCen, dist: lDist, ok: lOK, roi: lROI };
+    state.lastRight = { hole: rHole, cen: rCen, dist: rDist, ok: rOK, roi: rROI };
+
+    // Update verdict
+    if (!anyFound) {
+      verdict.className = 'idle';
+      verdict.textContent = 'SCANNING';
+    } else if (pass) {
+      verdict.className = 'pass';
+      verdict.textContent = 'PASS';
+    } else {
+      verdict.className = 'fail';
+      verdict.textContent = 'FAIL';
+    }
+
+    // Update panel stats
+    const fmtDist = (d) => d !== null ? d.toFixed(1) : '—';
+    leftDistEl.textContent  = fmtDist(lDist);
+    leftDistEl.className    = 'stat-val ' + (lDist===null ? 'stat-idle' : lOK ? 'stat-ok' : 'stat-fail');
+    rightDistEl.textContent = fmtDist(rDist);
+    rightDistEl.className   = 'stat-val ' + (rDist===null ? 'stat-idle' : rOK ? 'stat-ok' : 'stat-fail');
+
+    if (lHole || rHole) {
+      const s = lHole || rHole;
+      holeSizeEl.textContent = `Hole: ${Math.round(s.w)}×${Math.round(s.h)}px`;
+    }
+
+    // Draw overlay
+    drawOverlay(lROI, rROI, lCen, rCen, lHole, rHole, lOK, rOK, anyFound, pass);
+
+    // FPS
+    state.frameCount++;
+    state.fpsFrames++;
+    const now = performance.now();
+    if (now - state.lastFpsTime > 1000) {
+      fpsDisplay.textContent = `FPS: ${state.fpsFrames}`;
+      state.fpsFrames = 0;
+      state.lastFpsTime = now;
+    }
+    frameCountEl.textContent = `Frames: ${state.frameCount}`;
+  }
+
+  loop();
+}
+
+// ── Overlay drawing ────────────────────────────────────────────
+
+function drawOverlay(lROI, rROI, lCen, rCen, lHole, rHole, lOK, rOK, anyFound, pass) {
+  const ow = overlayCanvas.width;
+  const oh = overlayCanvas.height;
+  const vw = procCanvas.width  || 1;
+  const vh = procCanvas.height || 1;
+
+  // Scale from frame coords → canvas display coords
+  const sx = ow / vw;
+  const sy = oh / vh;
+
+  function toC(fx, fy) { return [fx*sx, fy*sy]; }
+
+  ctx.clearRect(0, 0, ow, oh);
+
+  const passColor  = '#1adb7a';
+  const failColor  = '#ff3d4a';
+  const leftColor  = '#5bc4f5';
+  const rightColor = '#f5a25b';
+  const refColor   = 'rgba(255,255,255,0.5)';
+
+  // Draw ROI boxes
+  [[lROI, leftColor, state.leftRef], [rROI, rightColor, state.rightRef]].forEach(([roi, col, ref]) => {
+    const [rx, ry] = toC(roi.x, roi.y);
+    const rw = roi.w * sx, rh = roi.h * sy;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+    ctx.strokeRect(rx, ry, rw, rh);
+    ctx.setLineDash([]);
+
+    // Reference crosshair
+    if (ref) {
+      const [refx, refy] = toC(ref.x, ref.y);
+      ctx.strokeStyle = refColor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(refx-10, refy); ctx.lineTo(refx+10, refy);
+      ctx.moveTo(refx, refy-10); ctx.lineTo(refx, refy+10);
+      ctx.stroke();
+
+      // Tolerance circle
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      ctx.arc(refx, refy, state.tolerance * sx, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  // Draw detected holes
+  [[lCen, lHole, lOK, leftColor, state.leftRef],
+   [rCen, rHole, rOK, rightColor, state.rightRef]].forEach(([cen, hole, ok, col, ref]) => {
+    if (!cen || !hole) return;
+    const [cx, cy] = toC(cen.x, cen.y);
+    const hw = hole.w * sx / 2 + 4;
+    const hh = hole.h * sy / 2 + 4;
+    const hcolor = ok ? passColor : failColor;
+
+    // Detected hole bounding rect
+    ctx.strokeStyle = hcolor;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx - hw, cy - hh, hw*2, hh*2);
+
+    // Centre dot
+    ctx.fillStyle = hcolor;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3, 0, Math.PI*2);
+    ctx.fill();
+
+    // Line to reference
+    if (ref) {
+      const [refx, refy] = toC(ref.x, ref.y);
+      ctx.strokeStyle = hcolor;
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(refx, refy);
+      ctx.lineTo(cx, cy);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // Distance label
+    if (ref) {
+      const d = dist2d(cen.x, cen.y, ref.x, ref.y);
+      ctx.fillStyle = hcolor;
+      ctx.font = '11px "Space Mono", monospace';
+      ctx.fillText(d.toFixed(1)+'px', cx + hw + 4, cy + 4);
+    }
+  });
+
+  // Calibration tap points
+  if (state.calibrating) {
+    ctx.strokeStyle = '#c8742a';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3,3]);
+    ctx.strokeRect(ow*0.1, oh*0.1, ow*0.8, oh*0.8);
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#c8742a';
+    ctx.font = '12px "Space Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(state.calibStep === 0 ? 'TAP LEFT PILOT HOLE' : 'TAP RIGHT PILOT HOLE',
+                 ow/2, oh * 0.08);
+    ctx.textAlign = 'left';
+
+    if (state.leftRef && state.calibStep === 1) {
+      const [lx, ly] = toC(state.leftRef.x, state.leftRef.y);
+      ctx.strokeStyle = passColor;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(lx-12, ly); ctx.lineTo(lx+12, ly);
+      ctx.moveTo(lx, ly-12); ctx.lineTo(lx, ly+12);
+      ctx.stroke();
+      ctx.strokeStyle = passColor;
+      ctx.beginPath();
+      ctx.arc(lx, ly, 14, 0, Math.PI*2);
+      ctx.stroke();
+    }
+  }
+
+  // Pass/fail glow border
+  if (anyFound) {
+    const bc = pass ? passColor : failColor;
+    ctx.strokeStyle = bc;
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.3;
+    ctx.strokeRect(2, 2, ow-4, oh-4);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ── Window resize ──────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  overlayCanvas.width  = overlayCanvas.offsetWidth;
+  overlayCanvas.height = overlayCanvas.offsetHeight;
+});
+</script>
+</body>
+</html>
